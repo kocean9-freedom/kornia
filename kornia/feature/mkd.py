@@ -542,19 +542,29 @@ class MKDDescriptor(nn.Module):
     This is based on the paper "Understanding and Improving Kernel Local Descriptors".
     See :cite:`mukundan2019understanding` for more details.
 
+    Convention:
+        - Patches are ``(B, 1, patch_size, patch_size)``: ``patch_size`` must be the input's size, and another size
+          raises. The kernels are centred on the patch centre :math:`(\text{patch\_size} - 1) / 2`.
+        - The descriptor has unit L2 norm, and an intensity change :math:`a x + b` with :math:`a > 0` gives the same
+          descriptor unless it leaves the patch nearly flat.
+        - With whitening the descriptor is :math:`\min(\text{output\_dims}, E)` wide, where :math:`E` is the width of
+          the kernel embedding: 238 for ``'concat'``, 175 for ``'polar'`` and 63 for ``'cart'``. With
+          ``whitening=None`` it is that embedding, :math:`E` wide whatever ``output_dims`` says. A whitening model is
+          downloaded on first use; ``whitening=None`` needs no download.
+
     Args:
         patch_size: Input patch size in pixels.
         kernel_type: Parametrization of kernel ``'concat'``, ``'cart'``, ``'polar'``.
         whitening: Whitening transform to apply ``None``, ``'lw'``, ``'pca'``, ``'pcawt'``, ``'pcaws'``.
         training_set: Set that model was trained on ``'liberty'``, ``'notredame'``, ``'yosemite'``.
-        output_dims: Dimensionality reduction.
+        output_dims: Width of the whitened descriptor, at most the embedding width; ignored with ``whitening=None``.
 
     Returns:
-        Explicit cartesian or polar embedding.
+        Unit-norm descriptors of the patches.
 
     Shape:
-        - Input: :math:`(B, in_{dims}, fmap_{size}, fmap_{size})`.
-        - Output: :math:`(B, out_{dims}, fmap_{size}, fmap_{size})`,
+        - Input: :math:`(B, 1, \text{patch\_size}, \text{patch\_size})`.
+        - Output: :math:`(B, D)`, with :math:`D` as in the Convention block.
 
     Examples:
         >>> patches = torch.rand(23, 1, 32, 32)
@@ -634,12 +644,10 @@ class MKDDescriptor(nn.Module):
         """Compute Multiple Kernel Descriptor (MKD) vectors for image patches.
 
         Args:
-            patches: Grayscale patch tensor with shape :math:`(B, 1, H, W)`, where
-                ``B`` is the number of patches and ``H``/``W`` are patch dimensions.
+            patches: Grayscale patch tensor with shape ``(B, 1, patch_size, patch_size)``.
 
         Returns:
-            Descriptor tensor with shape :math:`(B, D)`, where ``D`` is the configured
-            output descriptor dimension after optional whitening.
+            Descriptor tensor with shape :math:`(B, D)`, with ``D`` as in the class's Convention block.
         """
         if not isinstance(patches, torch.Tensor):
             raise TypeError(f"Input type is not a torch.Tensor. Got {type(patches)}")
